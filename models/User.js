@@ -14,6 +14,13 @@ const UserSchema = new mongoose.Schema({
         lowercase: true,
         match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Please provide a valid email']
     },
+    phone: {
+        type: String,
+        required: [true, 'Phone number is required'],
+        unique: true,
+        trim: true,
+        match: [/^(?:\+?234|0)[789][01]\d{8}$/, 'Please provide a valid phone number']
+    },
     password: {
         type: String,
         required: [true, 'Password is required'],
@@ -25,10 +32,24 @@ const UserSchema = new mongoose.Schema({
         enum: ['renter', 'landlord', 'agent', 'admin'],
         default: 'renter'
     },
-    //Anti-fraud verification Flags.
+    //High-security standard and Anti-Fraud Tracking.
+    isEmailVerified: {
+        type: Boolean,
+        default: false
+    },
+    isPhoneVerified: {
+        type: Boolean,
+        default: false
+    },
+     //Anti-fraud verification Flags.
     isVerified: {
         type: Boolean,
         default: false
+    },
+    verificationStatus: {
+        type: String,
+        enum: ['unverified','pending', 'verified', 'failed'],
+        default: 'unverified'
     },
     verificationType: {
         type: String,
@@ -38,6 +59,31 @@ const UserSchema = new mongoose.Schema({
     idNumber: {
         type: String,
         default: null
+    },
+    verifiedAt: {
+        type: Date,
+        default: null
+    },
+
+    //Agent-specific performance tracking metric initialized at signup.
+    agentMetrics: {
+        performanceScore: {
+            type: Number,
+            default: 100,
+            min: 0,
+            max: 100
+        },
+        reputuationRanking: {
+            type: String,
+            enum: ['Bronze', 'Silver', 'Gold', 'Platinum'],
+            default: 'Bronze'
+        }
+        
+    },
+    accountStatus: {
+        type: String,
+        enum: ['active', 'suspended', 'under-review'],
+        default: 'active'
     }
 }, {
     timestamps: true

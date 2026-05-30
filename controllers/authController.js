@@ -11,7 +11,7 @@ const signToken = (id) => {
 };
 
 exports.register = catchAsync(async (req, res, next) => {
-    const { fullName, email, password, role } = req.body;
+    const { fullName, email, phone, password, role } = req.body;
 
     //prevents accounnt from maliciously forcing an active verified state on sgnup
     const existinguser = await User.findOne({ email });
@@ -21,6 +21,7 @@ exports.register = catchAsync(async (req, res, next) => {
     const newUser = await User.create({
         fullName,
         email,
+        phone,
         password,
         role,
         isVerified: false // forces everyone to undergo the KYC process later

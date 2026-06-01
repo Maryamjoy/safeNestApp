@@ -1,17 +1,23 @@
 const express = require('express');
-const propertyController = require('../controllers/propertyController');
-const authController = require('../controllers/authController');
-
 const router = express.Router();
+const propertyController = require('../controllers/propertyController');
 
-//Public Routes
-router.get('/', propertyController.getAllProperties);
-router.post('/', authController.protect, propertyController.createProperty);
+// This is the route to post a house
+router.post('/create', propertyController.createProperty);
 
-
-//Protected Routes must be logged in to post listing.
-router.get('/:id', propertyController.getProperty);
-router.patch('/:id', authController.protect, propertyController.updateProperty);
-router.delete('/:id', authController.protect, propertyController.deleteProperty);
+// This is the route to see all houses
+router.get('/all', propertyController.getAllProperties);
 
 module.exports = router;
+
+// telling the app when a user visits
+router.get('/search', propertyController.searchProperties);
+
+// Route to update a house (We use PATCH for updates)
+router.patch('/update/:id', propertyController.updateProperty);
+
+// Route to delete a house
+router.delete('/delete/:id', propertyController.deleteProperty);
+
+// Route for Admins to verify a house
+router.patch('/verify/:id', propertyController.verifyProperty);

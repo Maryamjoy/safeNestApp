@@ -16,7 +16,7 @@ const PropertySchema = new mongoose.Schema({
         type: String,
         required: [true, 'Specify the property type.'],
         enum: {
-            values: ['apartment', 'house', 'self-contain', 'office', 'studio', 'shop',],
+            values: ['apartment', 'house', 'self-contain', 'office', 'studio', 'shop'],
             message: 'Property type must be either: apartment, house, self-contain, office, studio, or shop'
         }
     },
@@ -32,72 +32,53 @@ const PropertySchema = new mongoose.Schema({
         default: 'per-year'
     },
     location: {
-        address: {
-            type: String,
-            required: [true, 'Property address is required'],
-            trim: true
-        },
-        city: {
-            type: String,
-            required: [true, 'City is required'],
-            trim: true
-        },
-        state: {
-            type: String,
-            required: [true, 'State is required'],
-            trim: true
-        }
+        address: { type: String, required: [true, 'Property address is required'], trim: true },
+        city: { type: String, required: [true, 'City is required'], trim: true },
+        state: { type: String, required: [true, 'State is required'], trim: true }
+    },
+    bedrooms: { type: Number, default: 0 },
+    bathrooms: { type: Number, default: 0 },
+    images: [String], 
+    documents: [String], // Added for Task 2.1.2
 
-    },
-    bedrooms: {
-        type: Number,
-        default: 0
-    },
-    bathrooms: {
-        type: Number,
-        default: 0
-    },
-    images: [String], // Array of image URLs (will connect to file uploads later)
-
-    //ANTI-FRAUD AND RELATIONSHIP FIELDS
+    // --- ANTI-FRAUD & SECURITY FIELDS (The New Gaps) ---
+    property_hash: { type: String, unique: true }, // For Address Fingerprinting
+    image_hashes: [String],                        // Task 2.4.1: For Reverse Image Search
+    ocr_scanned_text: { type: String },            // Task 2.1.4: For OCR Setup
+    
     landlord: {
         type: mongoose.Schema.ObjectId,
-        ref: 'User', // Links this property directly to a registered User document
+        ref: 'User',
         required: [true, 'A property must belong to a landlord or verified agent.']
     },
     isPropertyVerified: {
         type: Boolean,
-        default: false // Set to false by default until admin verifies C of O or structural documents
+        default: false
     },
     verificationStatus: {
         type: String,
         enum: ['pending', 'approved', 'rejected'],
         default: 'pending'
+    },
+    availability_status: {
+        type: String,
+        enum: ['Available', 'Rented', 'Sold', 'Under Maintenance'],
+        default: 'Available'
     }
-},
-    {
-        timestamps: true, // Automatically manages createdAt and updatedAt fields
-        toJSON: { virtuals: true },
-        toObject: { virtuals: true }
-    }
-);
+}, {
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
+});
 
-//populate middleware: Automatically attaches basic landlord details (name, email) when querying properties.
-PropertySchema.pre(/^find/, async function () {
+// Middleware to automatically show landlord details
+PropertySchema.pre(/^find/, function (next) {
     this.populate({
         path: 'landlord',
         select: 'fullName email role isVerified'
     });
+    next();
 });
 
 const Property = mongoose.model('Property', PropertySchema);
-
 module.exports = Property;
-
-    image_hashes: [String],
-    ocr_scanned_text: { type: String },
-    availability_status: { 
-        type: String, 
-        enum: ['Available', 'Rented', 'Sold', 'Under Maintenance'], 
-        default: 'Available' 
-    },

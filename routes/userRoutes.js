@@ -4,7 +4,7 @@ const authController = require('../controllers/authController');
 
 const router = express.Router();
 
-//The security Guard: Protects all the routes that comes after this middleeware line.
+//The security Guard: Protects all the routes that comes after this middleware line.
 router.use(authController.protect);
 
 //User profile Endpoints

@@ -5,7 +5,7 @@ const AppError = require('../utils/AppError');
 
 //The helper function to generate a signed JWT
 const signToken = (id) => {
-    return jwt.sign({ id }, process.env.JWT_SECRET, {
+    return jwt.sign({ id: id.toString() }, process.env.JWT_SECRET, {
         expiresIn: process.env.JWT_EXPIRES_IN,
     });
 };
@@ -77,20 +77,24 @@ exports.protect = catchAsync(async (req, res, next) => {
         token = req.headers.authorization.split(' ')[1];
     }
 
-    if (!token) {
-        return next(new AppError('You are not logged in! Please log in to get access.', 401));
+    if (!token) { 
+        return res.status(401).json({
+            status: 'fail',
+            message: 'You are not logged in! Please log in to get access.'
+        });
     }
-    //verify the token signaure
-    let decoded;
-    try {
-        decoded = jwt.verify(token, process.env.JWT_SECRET);
-    } catch (error) {
-        return next(new AppError('Invalid token or expired token. Please log in again.', 401));
-    }
-//Check if user still exists
-    const currentUser = await User.findById(decoded.id);
-    if (!currentUser) {
-        return next(new AppError('The user belonging to this token does no longer exist.', 401));
+    //verify the token signature
+    const decoded = await promisify(jwt.verify)(token, process.env.JWT_SECRET);
+    
+    //Check if user still exists
+    const targetId = decoded.id || decoded._id;
+    const currentUser = await User.findById(targetId);
+
+    if (!currentUser) { 
+        return res.status(401).json({
+            status: 'fail',
+            message: 'The user belonging to this token does no longer exist.'
+        });
     }
 
     //grant access to protected route

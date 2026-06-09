@@ -73,7 +73,7 @@ const UserSchema = new mongoose.Schema({
             min: 0,
             max: 100
         },
-        reputuationRanking: {
+        reputationRanking: {
             type: String,
             enum: ['Bronze', 'Silver', 'Gold', 'Platinum'],
             default: 'Bronze'

@@ -186,14 +186,14 @@ PropertySchema.virtual('total_package').get(function() {
  * 2. ADDRESS FINGERPRINTING (Pre-Save Hook)
  * This prevents two people from listing the same house address at the same time.
  */
-PropertySchema.pre('save', function(next) {
+PropertySchema.pre('save', async function() {
     // Generate the hash
     const generatedHash = `${this.address}-${this.city}-${this.state}`
         .toLowerCase()
         .replace(/\s+/g, '');
     
     this.property_hash = generatedHash;
-    next();
+
 });
 
 // ==========================================

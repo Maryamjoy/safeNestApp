@@ -1,4 +1,6 @@
 const Property = require('../models/Property');
+const catchAsync = require('../utils/catchAsync');
+const AppError = require('../utils/appError');
 
 /**
  * CREATE NEW PROPERTY LISTING
@@ -6,66 +8,55 @@ const Property = require('../models/Property');
  * 1. Blocks scammers if a house is already 'Available'.
  * 2. Allows 'Resale' if the previous owner is finished with the house.
  */
-exports.createProperty = async (req, res) => {
-    try {
-        // A. EXTRACT DATA
-        // We get the house info from the user's request (req.body)
-        const { address, city, state, price, property_type } = req.body;
 
-        // B. GENERATE THE "FINGERPRINT" (Hash)
-        // We recreate the hash to see if this house already exists in our system
-        const generatedHash = `${address}-${city}-${state}`.toLowerCase().replace(/\s+/g, '');
+/**
+ * CREATE NEW PROPERTY LISTING
+ */
+exports.createProperty = catchAsync(async (req, res, next) => {
+    // A. EXTRACT DATA
+    const { address, city, state } = req.body;
 
-        // C. SECURITY CHECK: Does this address exist in our "Vault"?
-        const existingListing = await Property.findOne({ property_hash: generatedHash });
+    // B. GENERATE THE "FINGERPRINT" (Hash)
+    const generatedHash = `${address}-${city}-${state}`.toLowerCase().replace(/\s+/g, '');
 
-        if (existingListing) {
-            // --- CASE 1: THE SCAM CHECK ---
-            // If the house is currently 'Available' or 'Verified', someone else is already listing it!
-            if (existingListing.availability_status === 'Available' || existingListing.verification_status === 'Verified') {
-                return res.status(403).json({
-                    status: 'Flagged',
-                    message: "Security Alert: This property is already listed as 'Available' by another agent. A ownership dispute has been opened.",
-                    action: "Please upload your Certificate of Occupancy to the Dispute Section to prove you are the real owner."
-                });
-            }
+    // C. SECURITY CHECK: Does this address exist in our "Vault"?
+    const existingListing = await Property.findOne({ property_hash: generatedHash });
 
-            // --- CASE 2: THE RESALE / RE-RENT LOGIC ---
-            // If the old listing is 'Sold' or 'Rented', we allow a new person to list it.
-            if (existingListing.availability_status === 'Sold' || existingListing.availability_status === 'Rented') {
-                console.log("Resale detected. Allowing new listing with mandatory document verification.");
-                
-                // We mark this new listing as a Resale so the Admin knows to look closely
-                req.body.is_resale = true;
-                req.body.last_transfer_date = Date.now();
-            }
+    if (existingListing) {
+        // --- CASE 1: THE SCAM CHECK ---
+        if (existingListing.availability_status === 'Available' || existingListing.verification_status === 'Verified') {
+            return res.status(403).json({
+                status: 'Flagged',
+                message: "Security Alert: This property is already listed as 'Available' by another agent. An ownership dispute has been opened.",
+                action: "Please upload your Certificate of Occupancy to the Dispute Section to prove you are the real owner."
+            });
         }
 
-        // D. SAVE TO THE DATABASE
-        // If it passes the checks, we create the entry
-        const newProperty = await Property.create({
-            ...req.body,
-            landlord_id: req.user.id, // This comes from the Auth Team's login system
-            property_hash: generatedHash,
-            verification_status: 'Pending' // Always starts as Pending for safety!
-        });
-
-        // E. SUCCESS RESPONSE
-        res.status(201).json({
-            status: 'Success',
-            message: "Property submitted for verification. It will appear live once our team confirms your documents.",
-            data: newProperty
-        });
-
-    } catch (err) {
-        // If the computer crashes or there is a mistake
-        res.status(400).json({
-            status: 'Error',
-            message: "Listing failed",
-            error: err.message
-        });
+        // --- CASE 2: THE RESALE / RE-RENT LOGIC ---
+        if (existingListing.availability_status === 'Sold' || existingListing.availability_status === 'Rented') {
+            console.log("Resale detected. Allowing new listing with mandatory document verification.");
+            req.body.is_resale = true;
+            req.body.last_transfer_date = Date.now();
+        }
     }
-};
+
+    // D. SAVE TO THE DATABASE
+    const newProperty = await Property.create({
+        ...req.body,
+        landlord_id: req.user._id, // Cleanly supplied by protect middleware!
+        property_hash: generatedHash,
+        verification_status: 'Pending'
+    });
+
+    // E. SUCCESS RESPONSE
+    res.status(201).json({
+        status: 'Success',
+        message: "Property submitted for verification. It will appear live once our team confirms your documents.",
+        data: {
+            property: newProperty
+        }
+    });
+});
 
 /**
  * GET ALL VERIFIED PROPERTIES

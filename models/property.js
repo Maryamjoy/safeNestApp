@@ -1,206 +1,103 @@
 const mongoose = require('mongoose');
-const { v4: uuidv4 } = require('uuid'); // Unique identifier for security
 
 const PropertySchema = new mongoose.Schema({
-    
-    // ==========================================
-    // 1. SYSTEM IDENTIFIERS (The "ID Cards")
-    // ==========================================
-    
-    // Unique ID used for the frontend (hides our internal DB structure)
-    uuid: {
-        type: String,
-        default: uuidv4,
-        unique: true
-    },
-    // Links this property to the specific Landlord/Agent in the User table
-    landlord_id: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
-        required: [true, "A listing must be attached to a verified user"]
-    },
-
-    // ==========================================
-    // 2. CORE LISTING DETAILS (The "Basics")
-    // ==========================================
-    
     title: {
         type: String,
-        required: [true, "Property title is required (e.g. Luxury 2-Bedroom in Lekki)"],
+        required: [true, 'Property title is required'],
         trim: true,
-        maxlength: [100, "Title is too long"]
+        maxlength: [100, 'Property title must be less than 100 characters']
     },
     description: {
         type: String,
-        required: [true, "A detailed description is mandatory for transparency"],
+        required: [true, 'Property description is required'],
+        trim: true,
     },
-    property_type: {
+    propertyType: {
         type: String,
-        required: [true, "You must specify the type of property"],
+        required: [true, 'Specify the property type.'],
         enum: {
-            values: ['Flat', 'Self-contain', 'Duplex', 'Studio', 'Office', 'Bungalow', 'Mansionette'],
-            message: '{VALUE} is not a valid property type'
+            values: ['apartment', 'house', 'self-contain', 'office', 'studio', 'shop',],
+            message: 'Property type must be either: apartment, house, self-contain, office, studio, or shop'
         }
     },
-
-    // ==========================================
-    // 3. GEOGRAPHIC DATA (The "Map")
-    // ==========================================
-    
-    address: { 
-        type: String, 
-        required: [true, "Street address is required"] 
-    },
-    city: { 
-        type: String, 
-        required: [true, "City is required"] 
-    },
-    state: { 
-        type: String, 
-        required: [true, "State is required (e.g., Lagos, Abuja, Rivers)"] 
-    },
-    // GPS Coordinates: Prevents "Ghost Listings" by fixing the house to the earth
-    location: {
-        type: { type: String, default: 'Point' },
-        coordinates: {
-            type: [Number], // [Longitude, Latitude]
-            required: [true, "GPS coordinates are required for verification"]
-        }
-    },
-
-    // ==========================================
-    // 4. FINANCIALS (The "Money" & Transparency)
-    // ==========================================
-    
     price: {
         type: Number,
-        required: [true, "The base rent/sale price must be stated"]
+        required: [true, 'Property price is required'],
+        min: [0, 'Price must be a positive number']
     },
-    currency: {
+    pricePeriod: {
         type: String,
-        default: 'NGN',
-        enum: ['NGN', 'USD']
+        required: [true, 'Specify the price period (e.g., monthly, yearly).'],
+        enum: ['per-month', 'per-year'],
+        default: 'per-year'
     },
-    // Nigerian Transparency Fees: No more "Hidden Charges"
-    agency_fee: { type: Number, default: 0 },
-    legal_fee: { type: Number, default: 0 },
-    caution_fee: { type: Number, default: 0 },
-    service_charge: { type: Number, default: 0 },
-    inspection_fee: { 
-        type: Number, 
-        default: 0, 
-        help: "The fee the agent charges for viewing the property" 
-    },
+    location: {
+        address: {
+            type: String,
+            required: [true, 'Property address is required'],
+            trim: true
+        },
+        city: {
+            type: String,
+            required: [true, 'City is required'],
+            trim: true
+        },
+        state: {
+            type: String,
+            required: [true, 'State is required'],
+            trim: true
+        }
 
-    // ==========================================
-    // 5. AMENITIES & SPECS (The "Living Quality")
-    // ==========================================
-    
-    amenities: {
-        type: [String], // Array: ["WiFi", "Swimming Pool", "24/7 Security"]
-        default: []
     },
-    electricity_type: {
-        type: String,
-        enum: ['Prepaid Meter', 'Postpaid', 'Solar Only', 'None'],
-        default: 'Prepaid Meter'
+    bedrooms: {
+        type: Number,
+        default: 0
     },
-    water_source: {
-        type: String,
-        enum: ['Borehole', 'Public Water', 'Well', 'Tanker Only'],
-        default: 'Borehole'
+    bathrooms: {
+        type: Number,
+        default: 0
     },
+    images: [String], // Array of image URLs (will connect to file uploads later)
 
-    // ==========================================
-    // 6. MEDIA & TRUST ASSETS (The "Evidence")
-    // ==========================================
-    
-    // Photos of the property (Hosted on Cloudinary/S3)
-    images: {
-        type: [String],
-        required: [true, "A minimum of 3 property images is required"]
+    //ANTI-FRAUD AND RELATIONSHIP FIELDS
+    landlord: {
+        type: mongoose.Schema.ObjectId,
+        ref: 'User', // Links this property directly to a registered User document
+        required: [true, 'A property must belong to a landlord or verified agent.']
     },
-    // Verification documents (C of O, Deed, Utility Bills)
-    documents: {
-        type: [String],
-        required: [true, "Proof of ownership/authority to list must be uploaded"]
-    },
-
-    // ==========================================
-    // 7. STATUS & TRUST (The "Security Guard")
-    // ==========================================
-    
-    verification_status: {
-        type: String,
-        enum: ['Pending', 'Verified', 'Rejected', 'Under Review'],
-        default: 'Pending'
-    },
-    availability_status: {
-        type: String,
-        enum: ['Available', 'Rented', 'Sold', 'Under Maintenance', 'Off-Market'],
-        default: 'Available'
-    },
-
-    // ==========================================
-    // 8. ADVANCED ANTI-FRAUD & RESALE LOGIC
-    // ==========================================
-    
-    // The "Fingerprint": A hash of the address + city + state
-    property_hash: {
-        type: String,
-        unique: true
-    },
-    // Tracks if this property was previously listed and sold/transferred
-    is_resale: {
+    isPropertyVerified: {
         type: Boolean,
-        default: false
+        default: false // Set to false by default until admin verifies C of O or structural documents
     },
-    last_transfer_date: {
-        type: Date
-    },
-    // If a second person tries to list an 'Available' house, it creates a dispute
-    is_disputed: {
-        type: Boolean,
-        default: false
+    verificationStatus: {
+        type: String,
+        enum: ['pending', 'approved', 'rejected'],
+        default: 'pending'
     }
+},
+    {
+        timestamps: true, // Automatically manages createdAt and updatedAt fields
+        toJSON: { virtuals: true },
+        toObject: { virtuals: true }
+    }
+);
 
-}, {
-    timestamps: true, // Automatically track 'createdAt' and 'updatedAt'
-    toJSON: { virtuals: true },
-    toObject: { virtuals: true }
+//populate middleware: Automatically attaches basic landlord details (name, email) when querying properties.
+PropertySchema.pre(/^find/, async function () {
+    this.populate({
+        path: 'landlord',
+        select: 'fullName email role isVerified'
+    });
 });
 
-// ==========================================
-// SMART LOGIC & VIRTUALS
-// ==========================================
+const Property = mongoose.model('Property', PropertySchema);
 
-/**
- * 1. THE TOTAL PACKAGE CALCULATOR
- * Automatically sums up all fees so the Renter sees the final cost immediately.
- */
-PropertySchema.virtual('total_package').get(function() {
-    return this.price + this.agency_fee + this.legal_fee + this.caution_fee + this.service_charge;
-});
+module.exports = Property;
 
-/**
- * 2. ADDRESS FINGERPRINTING (Pre-Save Hook)
- * This prevents two people from listing the same house address at the same time.
- */
-PropertySchema.pre('save', function(next) {
-    // Generate the hash
-    const generatedHash = `${this.address}-${this.city}-${this.state}`
-        .toLowerCase()
-        .replace(/\s+/g, '');
-    
-    this.property_hash = generatedHash;
-    next();
-});
-
-// ==========================================
-// PERFORMANCE INDEXING
-// ==========================================
-// Makes the app super fast when searching through thousands of houses
-PropertySchema.index({ price: 1, city: 1, verification_status: 1 });
-PropertySchema.index({ location: '2dsphere' }); // For searching "Houses near me"
-
-module.exports = mongoose.model('Property', PropertySchema);
+    image_hashes: [String],
+    ocr_scanned_text: { type: String },
+    availability_status: { 
+        type: String, 
+        enum: ['Available', 'Rented', 'Sold', 'Under Maintenance'], 
+        default: 'Available' 
+    },

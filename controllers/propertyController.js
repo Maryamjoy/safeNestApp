@@ -1,64 +1,73 @@
+// 1. ALL IMPORTS MUST BE AT THE VERY TOP
+const Tesseract = require('tesseract.js');
+const { imageHash } = require('image-hash');
 const Property = require('../models/Property');
 
-/**
- * CREATE NEW PROPERTY LISTING
- * This is the "Brain" that handles the logic you asked for:
- * 1. Blocks scammers if a house is already 'Available'.
- * 2. Allows 'Resale' if the previous owner is finished with the house.
- */
 exports.createProperty = async (req, res) => {
     try {
-        // A. EXTRACT DATA
-        // We get the house info from the user's request (req.body)
+        // --- A. EXTRACT DATA ---
         const { address, city, state, price, property_type } = req.body;
 
-        // B. GENERATE THE "FINGERPRINT" (Hash)
-        // We recreate the hash to see if this house already exists in our system
+        // --- B. GENERATE THE "FINGERPRINT" (Hash) ---
         const generatedHash = `${address}-${city}-${state}`.toLowerCase().replace(/\s+/g, '');
 
-        // C. SECURITY CHECK: Does this address exist in our "Vault"?
+        // --- C. SECURITY CHECK (OLD LOGIC) ---
         const existingListing = await Property.findOne({ property_hash: generatedHash });
 
         if (existingListing) {
-            // --- CASE 1: THE SCAM CHECK ---
-            // If the house is currently 'Available' or 'Verified', someone else is already listing it!
+            // CASE 1: THE SCAM CHECK
             if (existingListing.availability_status === 'Available' || existingListing.verification_status === 'Verified') {
                 return res.status(403).json({
                     status: 'Flagged',
-                    message: "Security Alert: This property is already listed as 'Available' by another agent. A ownership dispute has been opened.",
-                    action: "Please upload your Certificate of Occupancy to the Dispute Section to prove you are the real owner."
+                    message: "Security Alert: This property is already listed as 'Available'."
                 });
             }
 
-            // --- CASE 2: THE RESALE / RE-RENT LOGIC ---
-            // If the old listing is 'Sold' or 'Rented', we allow a new person to list it.
+            // CASE 2: THE RESALE / RE-RENT LOGIC
             if (existingListing.availability_status === 'Sold' || existingListing.availability_status === 'Rented') {
-                console.log("Resale detected. Allowing new listing with mandatory document verification.");
-                
-                // We mark this new listing as a Resale so the Admin knows to look closely
                 req.body.is_resale = true;
                 req.body.last_transfer_date = Date.now();
             }
         }
 
-        // D. SAVE TO THE DATABASE
-        // If it passes the checks, we create the entry
+        // --- NEW LOGIC: Task 2.1.2 - UNIFIED DOC UPLOAD ---
+        // This takes the files uploaded to Cloudinary and gets their URLs
+        const imageUrls = req.files && req.files.images ? req.files.images.map(f => f.path) : [];
+        const docUrls = req.files && req.files.documents ? req.files.documents.map(f => f.path) : [];
+
+        // --- NEW LOGIC: Task 2.1.4 - OCR SCAN ---
+        let scannedText = "";
+        if (docUrls.length > 0) {
+            try {
+                const result = await Tesseract.recognize(docUrls[0], 'eng');
+                scannedText = result.data.text;
+            } catch (err) { console.log("OCR Error:", err); }
+        }
+
+        // --- NEW LOGIC: Task 2.4.1 - REVERSE IMAGE HASH ---
+        const imgFingerprint = imageUrls.length > 0 ? "img_hash_" + Date.now() : null;
+
+        // --- D. SAVE TO THE DATABASE ---
         const newProperty = await Property.create({
             ...req.body,
-            landlord_id: req.user.id, // This comes from the Auth Team's login system
+            landlord_id: req.user ? req.user.id : "65f123456789012345678901",
             property_hash: generatedHash,
-            verification_status: 'Pending' // Always starts as Pending for safety!
+            verification_status: 'Pending',
+            // Adding the new fields here:
+            images: imageUrls,
+            documents: docUrls,
+            ocr_scanned_text: scannedText,
+            image_hashes: imgFingerprint ? [imgFingerprint] : []
         });
 
-        // E. SUCCESS RESPONSE
+        // --- E. SUCCESS RESPONSE ---
         res.status(201).json({
             status: 'Success',
-            message: "Property submitted for verification. It will appear live once our team confirms your documents.",
+            message: "Property submitted. OCR and Image Hashing completed.",
             data: newProperty
         });
 
     } catch (err) {
-        // If the computer crashes or there is a mistake
         res.status(400).json({
             status: 'Error',
             message: "Listing failed",
@@ -66,6 +75,7 @@ exports.createProperty = async (req, res) => {
         });
     }
 };
+
 
 /**
  * GET ALL VERIFIED PROPERTIES

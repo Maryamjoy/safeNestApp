@@ -27,7 +27,7 @@ const initiatePayment = async (req, res) => {
       tenant: req.user.id,
       landlord: booking.landlord,
       amount: booking.totalAmount,
-      reference: RENT-${Date.now()}-${Math.random().toString(36).substring(2, 15)},
+      reference: `RENT-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`,
       status: 'pending',
     });
 
@@ -37,7 +37,7 @@ const initiatePayment = async (req, res) => {
       amount: amountInKobo,
       email: booking.tenant.email,
       reference: payment.reference,
-      callback_url: ${process.env.FRONTEND_URL}/payment/callback, // e.g. http://localhost:3000
+      callback_url: `${process.env.FRONTEND_URL}/payment/callback`, // e.g. http://localhost:3000
       metadata: {
         bookingId,
         paymentId: payment._id.toString()
@@ -50,12 +50,12 @@ const initiatePayment = async (req, res) => {
       reference: payment.reference,
       payment
     });
-
-} catch (error) {
+  } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Failed to initialize payment", error: error.message });
   }
 };
+
 //Verify Payment
 const verifyPayment = async (req, res) => {
   try {

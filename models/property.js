@@ -10,7 +10,7 @@ const PropertySchema = new mongoose.Schema({
     // Unique ID used for the frontend (hides our internal DB structure)
     uuid: {
         type: String,
-        default: uuidv4,
+        default: () => uuidv4(), // a new uuid is generated for each property
         unique: true
     },
     // Links this property to the specific Landlord/Agent in the User table
@@ -186,7 +186,7 @@ PropertySchema.virtual('total_package').get(function() {
  * 2. ADDRESS FINGERPRINTING (Pre-Save Hook)
  * This prevents two people from listing the same house address at the same time.
  */
-PropertySchema.pre('save', async function() {
+PropertySchema.pre('save', async function(next) {
     // Generate the hash
     const generatedHash = `${this.address}-${this.city}-${this.state}`
         .toLowerCase()

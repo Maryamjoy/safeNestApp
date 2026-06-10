@@ -1,10 +1,10 @@
 const Property = require('../models/Property');
 const catchAsync = require('../utils/catchAsync');
 const AppError = require('../utils/appError');
+const property = require('../models/Property');
 
 /**
  * CREATE NEW PROPERTY LISTING
- * This is the "Brain" that handles the logic you asked for:
  * 1. Blocks scammers if a house is already 'Available'.
  * 2. Allows 'Resale' if the previous owner is finished with the house.
  */
@@ -62,161 +62,152 @@ exports.createProperty = catchAsync(async (req, res, next) => {
  * GET ALL VERIFIED PROPERTIES
  * This ensures regular users ONLY see houses that have been "Gold-Stamped" by Admin.
  */
-exports.getAllProperties = async (req, res) => {
-    try {
-        // We filter: Only show 'Verified' and 'Available' houses
-        const properties = await Property.find({ 
-            verification_status: 'Verified',
-            availability_status: 'Available' 
-        });
+exports.getAllProperties = catchAsync(async (req, res) => {
 
-        res.status(200).json({
-            status: 'Success',
-            results: properties.length,
-            data: properties
-        });
-    } catch (err) {
-        res.status(404).json({ status: 'Fail', message: err.message });
-    }
+    // filter: Only show 'Verified' and 'Available' houses
+    const properties = await Property.find({
+        verification_status: 'Verified',
+        availability_status: 'Available'
+    }).populate({
+        path: 'Landlord_id',
+        select: 'fullName phone role registrationRanking'
+    });
 
-};
+    res.status(200).json({
+        status: 'Success',
+        results: properties.length,
+        data: { properties }
+    });
+
+
+});
 
 /**
  * SEARCH & FILTER PROPERTIES
- * This function allows users to find homes based on their specific needs.
+ * Allows users to find homes based on their specific needs.
  */
-exports.searchProperties = async (req, res) => {
-    try {
-        // A. THE BASE FILTER (The "Security Guard")
-        // We start by saying: ONLY show Verified and Available homes.
-        // This is how we solve the "Fraud Gap" in the industry.
-        let filter = { 
-            verification_status: 'Verified', 
-            availability_status: 'Available' 
-        };
+exports.searchProperties = catchAsync(async (req, res) => {
 
-        // B. ADDING USER FILTERS (If they provided any)
+    // A. THE BASE FILTER (The "Security Guard")
+    let filter = {
+        verification_status: 'Verified',
+        availability_status: 'Available'
+    };
 
-        // 1. Filter by City (e.g., ?city=Lagos)
-        if (req.query.city) {
-            // We use 'regex' so if they type "lag", they find "Lagos"
-            filter.city = { $regex: req.query.city, $options: 'i' }; 
-        }
+    // B. ADDING USER FILTERS (If they provided any)
 
-        // 2. Filter by Property Type (e.g., ?type=Self-contain)
-        if (req.query.type) {
-            filter.property_type = req.query.type;
-        }
-
-        // 3. Filter by Price Range (The "Budget" filter)
-        // This is huge for Nigerian students/professionals
-        if (req.query.minPrice || req.query.maxPrice) {
-            filter.price = {};
-            if (req.query.minPrice) filter.price.$gte = Number(req.query.minPrice); // Greater than or equal
-            if (req.query.maxPrice) filter.price.$lte = Number(req.query.maxPrice); // Less than or equal
-        }
-
-        // 4. Filter by Amenities (e.g., ?amenities=WiFi,Borehole)
-        if (req.query.amenities) {
-            // Converts "WiFi,Borehole" into an array and looks for properties that have BOTH
-            const amenitiesArray = req.query.amenities.split(',');
-            filter.amenities = { $all: amenitiesArray };
-        }
-
-        // C. EXECUTE THE SEARCH
-        // We sort by 'createdAt' so the newest houses appear first
-        const properties = await Property.find(filter).sort({ createdAt: -1 });
-
-        // D. SEND THE RESULTS
-        res.status(200).json({
-            status: 'Success',
-            results: properties.length,
-            data: properties
-        });
-
-    } catch (err) {
-        res.status(400).json({
-            status: 'Error',
-            message: "Search failed",
-            error: err.message
-        });
+    // 1. Filter by City
+    if (req.query.city) {
+        // We use 'regex' so if they type "lag", they find "Lagos"
+        filter.city = { $regex: req.query.city, $options: 'i' };
     }
-};
+
+    // 2. Filter by Property Type (e.g., ?type=Self-contain)
+    if (req.query.type) {
+        filter.property_type = req.query.type;
+    }
+
+    // 3. Filter by Price Range (The "Budget" filter)
+    if (req.query.minPrice || req.query.maxPrice) {
+        filter.price = {};
+        if (req.query.minPrice) filter.price.$gte = Number(req.query.minPrice); // Greater than or equal
+        if (req.query.maxPrice) filter.price.$lte = Number(req.query.maxPrice); // Less than or equal
+    }
+
+    // 4. Filter by Amenities
+    if (req.query.amenities) {
+        const amenitiesArray = req.query.amenities.split(',');
+        filter.amenities = { $all: amenitiesArray };
+    }
+
+    // C. EXECUTE THE SEARCH
+    const properties = await Property.find(filter)
+        .populate({
+            path: 'landlord_id',
+            select: 'fullName phone role'
+        })
+        .sort({ createdAt: -1 }); // Newest listings first
+
+    // D. SEND THE RESULTS
+    res.status(200).json({
+        status: 'Success',
+        results: properties.length,
+        data: { properties }
+    });
+
+
+});
 
 /**
  * 4. UPDATE PROPERTY DETAILS
  * Allows a landlord to change the price, description, or availability.
  */
-exports.updateProperty = async (req, res) => {
-    try {
-        // We find the house by its ID and update it with the new info (req.body)
-        const updatedProperty = await Property.findByIdAndUpdate(
-            req.params.id, 
-            req.body, 
-            { new: true, runValidators: true } // 'new' returns the updated house, not the old one
-        );
+exports.updateProperty = catchAsync(async (req, res) => {
+    let property = await Property.findById(req.params.id);
 
-        if (!updatedProperty) {
-            return res.status(404).json({ status: 'Fail', message: "House not found" });
-        }
-
-        res.status(200).json({
-            status: 'Success',
-            message: "Property updated successfully",
-            data: updatedProperty
-        });
-    } catch (err) {
-        res.status(400).json({ status: 'Error', message: err.message });
+    if (!property) {
+        return next(new AppError("House not found", 404));
     }
-};
+
+    // Only the landlord who owns this property can update it
+    if (property.landlord_id.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+        return next(new AppError("You do not have permission to update this property", 403));
+    }
+
+    await Property.findByIdAndUpdate(req.params.id);
+    res.status(200).json({
+        status: 'Success',
+        data: null
+    });
+
+});
 
 /**
  * 5. DELETE PROPERTY
  * Removes a house from the platform forever.
  */
-exports.deleteProperty = async (req, res) => {
-    try {
-        const property = await Property.findByIdAndDelete(req.params.id);
+exports.deleteProperty = catchAsync(async (req, res) => {
 
-        if (!property) {
-            return res.status(404).json({ status: 'Fail', message: "House not found" });
-        }
+    const property = await Property.findById(req.params.id);
 
-        res.status(204).json({ // 204 means "No Content" (Success but nothing to show)
-            status: 'Success',
-            data: null
-        });
-    } catch (err) {
-        res.status(400).json({ status: 'Error', message: err.message });
+    if (!property) {
+        return next(new AppError("House not found", 404));
     }
-};
+
+    if (property.landlord_id.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+        return next(new AppError("You do not have permission to delete this property", 403));
+    }
+
+    await Property.findByIdAndDelete(req.params.id);
+    res.status(204).json({
+        status: 'Success',
+        data: null
+    });
+});
 
 /**
  * 6. ADMIN VERIFICATION (The "Gold Stamp")
  * This is the CORE feature of your project. Only an Admin calls this.
  */
-exports.verifyProperty = async (req, res) => {
-    try {
-        // We find the house and specifically change its status to 'Verified'
-        const verifiedProperty = await Property.findByIdAndUpdate(
-            req.params.id,
-            { 
-                verification_status: 'Verified',
-                verifiedAt: Date.now() 
-            },
-            { new: true }
-        );
+exports.verifyProperty = catchAsync(async (req, res) => {
 
-        if (!verifiedProperty) {
-            return res.status(404).json({ status: 'Fail', message: "House not found" });
-        }
+    const verifiedProperty = await Property.findByIdAndUpdate(
+        req.params.id,
+        {
+            verification_status: 'Verified',
+            verifiedAt: Date.now()
+        },
+        { new: true, runValidators: true }
+    );
 
-        res.status(200).json({
-            status: 'Success',
-            message: "Property has been officially VERIFIED!",
-            data: verifiedProperty
-        });
-    } catch (err) {
-        res.status(400).json({ status: 'Error', message: err.message });
+    if (!verifiedProperty) {
+        return next(new AppError("House not found", 404));
     }
-};
+
+    res.status(200).json({
+        status: 'Success',
+        message: "Property has been officially VERIFIED!",
+        data: { property: verifiedProperty }
+    });
+
+});

@@ -3,30 +3,31 @@ const router = express.Router();
 const propertyController = require('../controllers/propertyController');
 const authController = require('../controllers/authController');
 
-const { protect } = require('../controllers/authController');
+//clean extratction of the gatekeeper middleware.
+const { protect, restrictTo } = authController;
 
-
-// This is the route to post a house
-router.post('/create',
-    authController.protect, //Authenticate's who the user is.
-    authController.restrictTo('landlord', 'agent', 'admin'), // Authorizes only landlords, agents, and admins to create properties.
-    propertyController.createProperty); //The Execution of the function that creates the property in the database.
-
-// This is the route to see all houses
-router.get('/all', propertyController.getAllProperties);
-
-
-// telling the app when a user visits
+//PUBLIC APP MARKETPLACE ENDPOINTS (No authentication required)
+//GET /api/v1/properties/search -> custom filtering module.
 router.get('/search', propertyController.searchProperties);
 
-// Route to update a house (We use PATCH for updates)
-router.patch('/update/:id', protect, propertyController.updateProperty);
+//GET /api/v1/properties/ -> Get all verified properties (for the public marketplace)
+router.get('/', propertyController.getAllProperties);
 
-// Route to delete a house
-router.delete('/delete/:id', protect, propertyController.deleteProperty);
+//Apply security check globally to every endpoint written below this Point
+router.use(protect);
 
-// Route for Admins to verify a house
-router.patch('/verify/:id', protect, propertyController.verifyProperty);
+router.route('/')
+    .post(restrictTo('landlord', 'agent', 'admin'), propertyController.createProperty) //Only landlords, agents, and admins can create properties.
 
+//PATCH /api/v1/properties/:id  securely update a specific property.
+//DELETE /api/v1/properties/:id  securely delete a specific property.
+router.route('/:id')
+    .patch(restrictTo('landlord', 'agent', 'admin'), propertyController.updateProperty) //Only landlords, agents, and admins can update properties.
+    .delete(restrictTo('landlord', 'agent', 'admin'), propertyController.deleteProperty); //Only landlords, agents, and admins can delete properties.
+
+//ADMIN-ONLY ENDPOINTS
+
+//PATCH /api/v1/properties/:id/verify.
+router.patch('/:id/verify', restrictTo('admin'), propertyController.verifyProperty); //Only admins can verify properties.
 
 module.exports = router;

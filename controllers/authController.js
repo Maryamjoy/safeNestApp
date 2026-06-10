@@ -160,18 +160,18 @@ exports.updateMe = catchAsync(async (req, res, next) => {
 
 //PATCH /api/v1/users/updateMyPassword (update password)
 exports.updateMyPassword = catchAsync(async (req, res, next) => { 
-    const { currentPassword, Password } = req.body;
+    const { currentpassword, password } = req.body;
 
     //Access targeted user and explicitly query hidden schema password field for authentication.
     const user = await User.findById(req.user._id).select('+password');
 
     //validate incoming DB string string hash matching metrics
-    if (!(await user.correctPassword(currentPassword, user.password))) { 
+    if (!(await user.correctPassword(currentpassword, user.password))) { 
         return next(new AppError('Your current password is incorrect.', 401));
     }
 
     //Re-assign clear text property to trigger pre-save middleware for password hashing
-    user.password = Password;
+    user.password = password;
 
     user.markModified('password'); //Explicitly marks the password field as modified to ensure pre-save middleware runs
     

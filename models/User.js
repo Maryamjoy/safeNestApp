@@ -98,7 +98,6 @@ UserSchema.pre('save', async function () {
     // 12 rounds of salting for strong security.
     const salt = await bcrypt.genSalt(12);
     this.password = await bcrypt.hash(this.password, salt);
-  
 });
 
 //INSTANCE METHODS (Prototype Functions)

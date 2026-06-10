@@ -17,6 +17,7 @@ const app = express();
 //Global request Middleware, Parses incoming JSON payloads.
 app.use(express.json()); //middleware to parse JSON request bodies(allows backend read incoming JSON data)
 
+
 app.use('/api/v1/auth', authRoutes); //Mounts the auth routes
 app.use('/api/v1/users', userRoutes); //Mounts the user routes
 app.use('/api/v1/properties', propertyRoutes); //Mounts the property routes

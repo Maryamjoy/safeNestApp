@@ -1,12 +1,16 @@
 const express = require('express');
 const router = express.Router();
 const propertyController = require('../controllers/propertyController');
+const authController = require('../controllers/authController');
 
 const { protect } = require('../controllers/authController');
 
 
 // This is the route to post a house
-router.post('/create', protect, propertyController.createProperty);
+router.post('/create',
+    authController.protect, //Authenticate's who the user is.
+    authController.restrictTo('landlord', 'agent', 'admin'), // Authorizes only landlords, agents, and admins to create properties.
+    propertyController.createProperty); //The Execution of the function that creates the property in the database.
 
 // This is the route to see all houses
 router.get('/all', propertyController.getAllProperties);

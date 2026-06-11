@@ -1,6 +1,29 @@
 const mongoose = require('mongoose');
 
 const PropertySchema = new mongoose.Schema({
+//feature/user-module
+    
+    // ==========================================
+    // 1. SYSTEM IDENTIFIERS (The "ID Cards")
+    // ==========================================
+    
+    // Unique ID used for the frontend (hides our internal DB structure)
+    uuid: {
+        type: String,
+        default: () => uuidv4(), // a new uuid is generated for each property
+        unique: true
+    },
+    // Links this property to the specific Landlord/Agent in the User table
+    landlord_id: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: [true, "A listing must be attached to a verified user"]
+    },
+
+    // ==========================================
+    // 2. CORE LISTING DETAILS (The "Basics")
+    // ==========================================
+    
     title: {
         type: String,
         required: [true, 'Property title is required'],
@@ -82,6 +105,36 @@ const PropertySchema = new mongoose.Schema({
     }
 );
 
+// feature/user-module
+}, {
+    timestamps: true, // Automatically track 'createdAt' and 'updatedAt'
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
+});
+
+// ==========================================
+// SMART LOGIC & VIRTUALS
+// ==========================================
+
+/**
+ * 1. THE TOTAL PACKAGE CALCULATOR
+ * Automatically sums up all fees so the Renter sees the final cost immediately.
+ */
+PropertySchema.virtual('total_package').get(function() {
+    return this.price + this.agency_fee + this.legal_fee + this.caution_fee + this.service_charge;
+});
+
+/**
+ * 2. ADDRESS FINGERPRINTING (Pre-Save Hook)
+ * This prevents two people from listing the same house address at the same time.
+ */
+PropertySchema.pre('save', async function(next) {
+    // Generate the hash
+    const generatedHash = `${this.address}-${this.city}-${this.state}`
+        .toLowerCase()
+        .replace(/\s+/g, '');
+    
+    this.property_hash = generatedHash;
 //populate middleware: Automatically attaches basic landlord details (name, email) when querying properties.
 PropertySchema.pre(/^find/, async function () {
     this.populate({

@@ -1,5 +1,9 @@
+/**
+ * This helper function prevents our server from crashing 
+ * if an async function (like database saving) fails.
+ */
 module.exports = fn => {
     return (req, res, next) => {
-        fn(req, res, next).catch(next); //catches any errors thrown in the async function and passes them to the next middleware (error handling middleware)
+        fn(req, res, next).catch(next);
     };
 };

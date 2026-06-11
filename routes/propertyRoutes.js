@@ -1,32 +1,33 @@
 const express = require('express');
 const router = express.Router();
 const propertyController = require('../controllers/propertyController');
-const authController = require('../controllers/authController');
+const upload = require('../utils/cloudinary'); 
+const { protect, restrictTo } = require('../middlewares/authMiddleware');
 
-const { protect } = require('../controllers/authController');
+// --- A. THE CREATE ROUTE ---
+// Task 2.1.2 & 2.1.4: Multi-platform upload + Security
+router.post('/create', 
+    protect, 
+    restrictTo('landlord', 'agent', 'admin'), 
+    upload.fields([
+        { name: 'images', maxCount: 5 },
+        { name: 'documents', maxCount: 2 }
+    ]), 
+    propertyController.createProperty
+);
 
-
-// This is the route to post a house
-router.post('/create',
-    authController.protect, //Authenticate's who the user is.
-    authController.restrictTo('landlord', 'agent', 'admin'), // Authorizes only landlords, agents, and admins to create properties.
-    propertyController.createProperty); //The Execution of the function that creates the property in the database.
-
-// This is the route to see all houses
+// --- B. DISCOVERY ROUTES ---
+// Task 2.5.1: Search and Browse verified listings
 router.get('/all', propertyController.getAllProperties);
-
-
-// telling the app when a user visits
 router.get('/search', propertyController.searchProperties);
 
-// Route to update a house (We use PATCH for updates)
+// --- C. MANAGEMENT ROUTES ---
+// Task 2.3.2: Allow landlords to manage their listings securely
 router.patch('/update/:id', protect, propertyController.updateProperty);
-
-// Route to delete a house
 router.delete('/delete/:id', protect, propertyController.deleteProperty);
 
-// Route for Admins to verify a house
-router.patch('/verify/:id', protect, propertyController.verifyProperty);
-
+// --- D. ADMIN ROUTES ---
+// Task 1.4.1: Admin-only verification for badges
+router.patch('/verify/:id', protect, restrictTo('admin'), propertyController.verifyProperty);
 
 module.exports = router;

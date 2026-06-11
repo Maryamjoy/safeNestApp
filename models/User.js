@@ -73,7 +73,7 @@ const UserSchema = new mongoose.Schema({
             min: 0,
             max: 100
         },
-        reputuationRanking: {
+        reputationRanking: {
             type: String,
             enum: ['Bronze', 'Silver', 'Gold', 'Platinum'],
             default: 'Bronze'
@@ -90,16 +90,26 @@ const UserSchema = new mongoose.Schema({
 
 });
 
+
 //ANTI-FRAUD SECURITY MEASURE: Hashes the password before saving to the database
 UserSchema.pre('save', async function () {
-    if (!this.isModified('password')) return;//only hash if password is new or modified
+    if (!this.isModified('password') || !this.password) return;//only hash if password is new or modified
 
-    const salt = await bcrypt.genSalt(12); //12 rounds of salting for strong security
-    this.password = await bcrypt.hash(this.password, salt); 
+    // 12 rounds of salting for strong security.
+    const salt = await bcrypt.genSalt(12);
+    this.password = await bcrypt.hash(this.password, salt);
+  
 });
 
+//INSTANCE METHODS (Prototype Functions)
+//Verification instance methods to compare password hashes during login/updates.
+
 UserSchema.methods.correctPassword = async function (candidatePassword, userPassword) {
-    return await bcrypt.compare(candidatePassword, userPassword); //compares the provided password with the hashed password in the database
+    //bcryptjs compares the clear-text input password with the DB hashed safely.
+    return await bcrypt.compare(candidatePassword, userPassword); //returns true if passwords match, false otherwise
 };
+
+
+
 
 module.exports = mongoose.model('User', UserSchema);

@@ -125,7 +125,7 @@ exports.restrictTo = (...allowedRoles) => {
             return next(new AppError('You are not logged in! Please log in to get access.', 401));
         }
 
-        if (!allowedRoles.includes(req.user.role)) {
+        if (!allowedRoles.includes(req.user.role) || !req.user.isVerified) {
             return next(
                 new AppError('Access Denied: You must upgrade your tier and upload your identity credentials to List properties.', 403)
             );

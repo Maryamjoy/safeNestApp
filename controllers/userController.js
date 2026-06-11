@@ -11,6 +11,7 @@ const filterObj = (obj, ...allowedFields) => {
     return newObj;
 };
 
+//GET /api/v1/users/me -> Get current user profile.
 exports.getMe = catchAsync(async (req, res, next) => { 
     res.status(200).json({
         status: 'success',
@@ -20,18 +21,19 @@ exports.getMe = catchAsync(async (req, res, next) => {
      });
 });
 
-//To update profile info like the changing of full name
+// PATCH /api/v1/users/updateMe -> Securely update profile fields
 exports.updateMe = catchAsync(async (req, res, next) => { 
+    //Guardrail to block password modification on this endpoint.
     if (req.body.password || req.body.passwordConfirm  ) {
         return next(new AppError('This route is not for password updates. Please use /updateMyPassword.', 400));
     }
 
      //to filter out unwanted fields that are not allowed to be updated
-    const filterBody = filterObj(req.body, 'fullName', 'phoneNumber');
+    const filterBody = filterObj(req.body, 'fullName', 'phone');
 
     //update user document
     const updatedUser = await User.findByIdAndUpdate(req.user.id, filterBody, {
-        new: true, //return the updated document
+        new: true, //return the updated document payload
         runValidators: true //run schema validators on the update operation
     });
 
@@ -44,8 +46,9 @@ exports.updateMe = catchAsync(async (req, res, next) => {
     }); 
 });
 
-//Delete current user profile.
+// DELETE /api/v1/users/deleteMe -> Soft-deactivate current profile
 exports.deleteMe = catchAsync(async (req, res, next) => { 
+    // Soft delete preserves user transaction records while barring access tokens from logging in
     await User.findByIdAndUpdate(req.user.id, { isActive: false });
 
     res.status(204).json({

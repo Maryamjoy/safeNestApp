@@ -92,12 +92,13 @@ const UserSchema = new mongoose.Schema({
 
 
 //ANTI-FRAUD SECURITY MEASURE: Hashes the password before saving to the database
-UserSchema.pre('save', async function () {
-    if (!this.isModified('password') || !this.password) return;//only hash if password is new or modified
+UserSchema.pre('save', async function (next) {
+    if (!this.isModified('password') || !this.password) return next();//only hash if password is new or modified
 
     // 12 rounds of salting for strong security.
     const salt = await bcrypt.genSalt(12);
     this.password = await bcrypt.hash(this.password, salt);
+    next();
 });
 
 //INSTANCE METHODS (Prototype Functions)
@@ -106,6 +107,13 @@ UserSchema.pre('save', async function () {
 UserSchema.methods.correctPassword = async function (candidatePassword, userPassword) {
     //bcryptjs compares the clear-text input password with the DB hashed safely.
     return await bcrypt.compare(candidatePassword, userPassword); //returns true if passwords match, false otherwise
+    next();
+};
+
+//Instance method to check if user is verified for listing properties.
+UserSchema.methods.correctPassword = async function (candidatePassword, userPassword) {
+    //bcryptjs compares the clear-text input password with the DB hashed safely.
+    return await bcrypt.compare(candidatePassword, userPassword);
 };
 
 

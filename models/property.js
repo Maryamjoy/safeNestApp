@@ -16,7 +16,7 @@ const PropertySchema = new mongoose.Schema({
         type: String,
         required: [true, 'Specify the property type.'],
         enum: {
-            values: ['apartment', 'house', 'self-contain', 'office', 'studio', 'shop'],
+            values: ['apartment', 'house', 'self-contain', 'office', 'studio', 'shop',],
             message: 'Property type must be either: apartment, house, self-contain, office, studio, or shop'
         }
     },
@@ -32,85 +32,64 @@ const PropertySchema = new mongoose.Schema({
         default: 'per-year'
     },
     location: {
-        address: { type: String, required: [true, 'Property address is required'], trim: true },
-        city: { type: String, required: [true, 'City is required'], trim: true },
-        state: { type: String, required: [true, 'State is required'], trim: true }
+        address: {
+            type: String,
+            required: [true, 'Property address is required'],
+            trim: true
+        },
+        city: {
+            type: String,
+            required: [true, 'City is required'],
+            trim: true
+        },
+        state: {
+            type: String,
+            required: [true, 'State is required'],
+            trim: true
+        }
+
     },
-    bedrooms: { type: Number, default: 0 },
-    bathrooms: { type: Number, default: 0 },
-    images: [String],
-    documents: [String], // Added for Task 2.1.2
+    bedrooms: {
+        type: Number,
+        default: 0
+    },
+    bathrooms: {
+        type: Number,
+        default: 0
+    },
+    images: [String], // Array of image URLs (will connect to file uploads later)
 
-    // --- ANTI-FRAUD & SECURITY FIELDS ---
-    property_hash: { type: String, unique: true }, // For Address Fingerprinting
-    image_hashes: [String],                        // Task 2.4.1: For Reverse Image Search
-    ocr_scanned_text: { type: String },            // Task 2.1.4: For OCR Setup
-    
-    // --- FINANCIAL TRANSPARENCY FIELDS ---
-    agency_fee: { type: Number, default: 0 },
-    legal_fee: { type: Number, default: 0 },
-    caution_fee: { type: Number, default: 0 },
-    service_charge: { type: Number, default: 0 },
-
+    //ANTI-FRAUD AND RELATIONSHIP FIELDS
     landlord: {
         type: mongoose.Schema.ObjectId,
-        ref: 'User',
+        ref: 'User', // Links this property directly to a registered User document
         required: [true, 'A property must belong to a landlord or verified agent.']
     },
     isPropertyVerified: {
         type: Boolean,
-        default: false
+        default: false // Set to false by default until admin verifies C of O or structural documents
     },
     verificationStatus: {
         type: String,
         enum: ['pending', 'approved', 'rejected'],
         default: 'pending'
-    },
-    availability_status: {
-        type: String,
-        enum: ['Available', 'Rented', 'Sold', 'Under Maintenance'],
-        default: 'Available'
     }
-}, {
-    timestamps: true,
-    toJSON: { virtuals: true },
-    toObject: { virtuals: true }
-});
+},
+    {
+        timestamps: true, // Automatically manages createdAt and updatedAt fields
+        toJSON: { virtuals: true },
+        toObject: { virtuals: true }
+    }
+);
 
-// =======================================================
-// SMART LOGIC, MIDDLEWARE & VIRTUALS (ALL RESOLVED HERE)
-// =======================================================
-
-// 1. POPULATE LANDLORD: Automatically show landlord details when finding a house
-PropertySchema.pre(/^find/, function (next) {
+//populate middleware: Automatically attaches basic landlord details (name, email) when querying properties.
+PropertySchema.pre(/^find/, async function () {
     this.populate({
         path: 'landlord',
         select: 'fullName email role isVerified'
     });
-    next();
-});
-
-/**
- * 2. THE TOTAL PACKAGE CALCULATOR
- * Automatically sums up all fees so the Renter sees the final cost immediately.
- */
-PropertySchema.virtual('total_package').get(function() {
-    return this.price + this.agency_fee + this.legal_fee + this.caution_fee + this.service_charge;
-});
-
-/**
- * 3. ADDRESS FINGERPRINTING (Pre-Save Hook)
- * This prevents two people from listing the same house address at the same time.
- */
-PropertySchema.pre('save', async function (next) {
-    // Generate the unique hash from location fields
-    const generatedHash = `${this.location.address}-${this.location.city}-${this.location.state}`
-        .toLowerCase()
-        .replace(/\s+/g, '');
-    
-    this.property_hash = generatedHash;
-    next();
 });
 
 const Property = mongoose.model('Property', PropertySchema);
+
 module.exports = Property;

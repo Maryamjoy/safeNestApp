@@ -1,46 +1,54 @@
 const jwt = require('jsonwebtoken');
-const AppError = require('../utils/AppError');
-const catchAsync = require('../utils/catchAsync');
-const User = require('../models/User');
+const User = require('../models/user'); // Ensure your model name is lowercase 'user.js'
+const appError = require('../utils/apperror'); // Standardized lowercase
+const catchAsync = require('../utils/catchasync'); // Standardized lowercase
 
-//Protects Middleware, verifies the short-expiration token.
-const protect = catchAsync(async (req, res, next) => { 
+/**
+ * 1. THE PROTECT GUARD
+ * Ensures the user is logged in and their account is still active.
+ * Attends to Tasks: 1.1.1, 1.2.1, 3.1.1
+ */
+exports.protect = catchAsync(async (req, res, next) => {
     let token;
 
-    //Extracts JWT from the Authorization header.
+    // A. Check if token exists in the "Authorization" header
     if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
         token = req.headers.authorization.split(' ')[1];
     }
 
-    if (!token) {  
-        return next(new AppError('You are not logged in! Please log in to get access.', 401));
+    // B. If no token is found, block access
+    if (!token) {
+        return next(new appError('You are not logged in! Please log in to get access.', 401));
     }
 
-    //Verify the token cryptographically.
+    // C. Verify the token (Check if the "ID card" is fake or expired)
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    //checks if the user associated with the token still exists.
+    // D. DATABASE CHECK: Does the user still exist in our system?
+    // This stops deleted users/scammers from using old tokens.
     const currentUser = await User.findById(decoded.id);
-    if (!currentUser) { 
-        return next(new AppError('The user belonging to this token does no longer exist.', 401));
+    if (!currentUser) {
+        return next(new appError('The user belonging to this token no longer exists.', 401));
     }
 
-    //Grant access and save the user data to the request object for downstream use.
-    req.user = currentUser; // Grant access to protected route
+    // E. GRANT ACCESS
+    // We save the FULL user document to 'req.user'
+    // Now any controller can see req.user.fullName, req.user.role, etc.
+    req.user = currentUser; 
     next();
 });
 
-//Restricts to Middleware, enforces Role-Base Access controller
-const restrictTo = (...allowedRoles) => {
+/**
+ * 2. THE ROLE RESTRICTOR
+ * Ensures only specific people (like Admins) can enter special doors.
+ * Attends to Tasks: 1.4.1 (Admin Badges), 5.1.1 (KPI Dashboard)
+ */
+exports.restrictTo = (...allowedRoles) => {
     return (req, res, next) => {
-
-        //if the user's role isn't included in the allowed params, block them.
+        // req.user was set by the 'protect' function above
         if (!allowedRoles.includes(req.user.role)) {
-            return next(new AppError('You do not have permission to perform this action', 403));
+            return next(new appError('Access Denied: You do not have permission for this action.', 403));
         }
         next();
     };
-
 };
-
-module.exports = { protect, restrictTo };
